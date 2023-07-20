@@ -53,7 +53,7 @@ You'll need the following packages installed:
 - avahi-utils 
 - linux-modules-extra-\`uname -r\` - one of the prerequisites is the dummy sound card; it is this package in Ubuntu which installs it
 
-Install the Python `boto3` library (`sudo pip install boto3`) - this is used in AWS to determine which region the software is running in; outside of AWS it doesn't matter but it is included so installing boto3 will avoid any errors.
+Install the Python `boto3` library (`sudo pip3 install boto3`) - this is used in AWS to determine which region the software is running in; outside of AWS it doesn't matter but it is included so installing boto3 will avoid any errors.
 
 Download and build `rtpmidid` from https://github.com/davidmoreno/rtpmidid
 
