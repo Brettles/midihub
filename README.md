@@ -37,6 +37,8 @@ Deployment takes around ten minutes - there are a bunch of packages to install a
 
 Note that the name of the CloudFormation stack that you deploy should be unique if you are going to deploy MidiHub in multiple regions. For example "MidiHub-Sydney" and another "MidiHub-Singapore". This will prevent global resource name conflicts.
 
+The Elastic IP may result in charges to your account. If you are shutting down the MidiHub instance to save costs (this is a good idea!) you will be charged for the Elastic IP because it is unused. On [the pricing page](https://aws.amazon.com/ec2/pricing/on-demand/#Elastic_IP_Addresses) you can see that this will result in an extra charge of around US$4 per month. You can delete the entire CloudFormation stack (which will eliminate the charge) but the next time you create the stack it will have a new Elastic IP.
+
 ## Deploy manually (in AWS or not)
 
 You might want to run this on your own (non-AWS) virtual machine. In AWS this runs on Ubuntu so the package list below is based on that.
