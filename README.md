@@ -35,6 +35,8 @@ The template creates an EC2 instance; EC2 instance profile; IAM role; Security G
 
 Deployment takes around ten minutes - there are a bunch of packages to install and the [rtpmidid]((https://github.com/davidmoreno/rtpmidid)) has to be compiled from source.
 
+Note that the name of the CloudFormation stack that you deploy should be unique if you are going to deploy MidiHub in multiple regions. For example "MidiHub-Sydney" and another "MidiHub-Singapore". This will prevent global resource name conflicts.
+
 ## Deploy manually (in AWS or not)
 
 You might want to run this on your own (non-AWS) virtual machine. In AWS this runs on Ubuntu so the package list below is based on that.
