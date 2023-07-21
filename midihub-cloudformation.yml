@@ -95,6 +95,11 @@ Resources:
               mode: '000644'
               owner: ubuntu
               group: ubuntu
+            "/home/ubuntu/crontab.root":
+                @reboot sudo apt-get install linux-modules-extra-`uname -r` -y
+              mode: '000644'
+              owner: root
+              group: root
             "/home/ubuntu/crontab.ubuntu":
               content: !Sub |
                 @reboot mv /home/ubuntu/output.log /home/ubuntu/output.old
@@ -136,6 +141,7 @@ Resources:
           chmod +x midihub.py
           chown -R ubuntu:ubuntu *
           crontab -u ubuntu crontab.ubuntu
+          sudo crontab -r root crontab.root
           sudo reboot
 
   SecurityGroup:
