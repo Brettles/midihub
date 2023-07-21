@@ -75,7 +75,6 @@ Mappings:
       HVM64: ami-00742e66d44c13cd9
 
 Resources:
-# remember to reboot at the end
   MidiHubInstance:
     Type: AWS::EC2::Instance
     Metadata:
@@ -98,8 +97,9 @@ Resources:
               group: ubuntu
             "/home/ubuntu/crontab.ubuntu":
               content: !Sub |
-                @reboot mv /home/ubuntu/output /home/ubuntu/output.old
-                * * * * * (cd /home/ubuntu; ./midihub.py) >>/home/ubuntu/output 2>&1
+                @reboot mv /home/ubuntu/output.log /home/ubuntu/output.old
+                @reboot rm /home/ubuntu/output-*.log
+                * * * * * (cd /home/ubuntu; ./midihub.py) >>/home/ubuntu/output.log 2>&1
               mode: '000644'
               owner: ubuntu
               group: ubuntu

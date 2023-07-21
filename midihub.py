@@ -115,8 +115,10 @@ def checkDaemon():
         if port in midiStatus: continue
         logger.warning(f'Midi daemon on port {port} not running - starting')
         if os.fork() == 0: # We are the child process
-            os.close(1)
-            os.close(2)
+            newStdOut = os.open(f'output-{port}.log', os.O_WRONLY|os.O_CREAT|os.O_APPEND)
+            os.dup2(newStdOut, sys.stdout.fileno())
+            os.close(newStdOut)
+            os.close(2) # Close STDERR
             os.execlp(MIDI_DAEMON, daemonName, f'--port', str(port), '--control', f'control-{port}.sock', '--name', f'midiHub-{location}{port}')
 
 #
