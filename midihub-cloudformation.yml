@@ -105,7 +105,7 @@ Resources:
               mode: '000644'
               owner: ubuntu
               group: ubuntu
-            "/home/ubuntu/cloudfrontdistritbution":
+            "/home/ubuntu/cloudfrontdistribution":
               content: !Sub |
                 ${CloudFrontDistribution}
               mode: '000644'
@@ -166,6 +166,7 @@ Resources:
           ln midihub/update-latency.py update-latency.py
           cd midihub
           python3 create-s3-bucket.py
+          cd /home/ubuntu
           chmod +x midihub.py update-latency.py
           chown -R ubuntu:ubuntu *
           crontab -u ubuntu crontab.ubuntu
