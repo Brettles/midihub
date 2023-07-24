@@ -132,7 +132,7 @@ def main():
     originItem['DomainName'] = f'{randomName}.s3.amazonaws.com'
     originItem['OriginAccessControlId'] = oac['OriginAccessControl']['Id']
     originItem['S3OriginConfig'] = {'OriginAccessIdentity':''}
-    if 'CustomerOriginConfig' in originItem:
+    if 'CustomOriginConfig' in originItem:
         del(originItem['CustomOriginConfig'])
 
     originUpdate = {}
