@@ -35,9 +35,14 @@ Outputs:
   ElasticIP:
     Description: Public IP address of MIDI hub server
     Value: !Ref ElasticIP
+  CloudFrontDistribution:
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}/midihub.html'
   ListenerPorts:
     Description: UDP ports for MIDI daemon
     Value: !Ref ListenerPorts
+  LambdaFunctionUrl:
+    Description: Substitute into midihub.html to see latency updates
+    Value: !GetAtt LambdaFunctionUrl.FunctionUrl
 
 Mappings:
   AWSRegion2AMI:
@@ -78,7 +83,6 @@ Resources:
   MidiHubInstance:
     Type: AWS::EC2::Instance
     Metadata:
-      Comment: Install a simple PHP application
       AWS::CloudFormation::Init:
         config:
           files:
@@ -95,7 +99,27 @@ Resources:
               mode: '000644'
               owner: ubuntu
               group: ubuntu
+            "/home/ubuntu/dynamodbtable":
+              content: !Sub |
+                ${DynamoDBTable}
+              mode: '000644'
+              owner: ubuntu
+              group: ubuntu
+            "/home/ubuntu/cloudfrontdistritbution":
+              content: !Sub |
+                ${CloudFrontDistribution}
+              mode: '000644'
+              owner: ubuntu
+              group: ubuntu
+            "/home/ubuntu/lambdafunctionurl":
+              content: !Sub |
+                ${LambdaFunctionUrl.FunctionUrl}
+              mode: '000644'
+              owner: ubuntu
+              group: ubuntu
             "/home/ubuntu/crontab.root":
+            "/home/ubuntu/crontab.root":
+              content: !Sub |
                 @reboot sudo apt-get install linux-modules-extra-`uname -r` -y
               mode: '000644'
               owner: root
@@ -105,6 +129,7 @@ Resources:
                 @reboot mv /home/ubuntu/output.log /home/ubuntu/output.old
                 @reboot rm /home/ubuntu/output-*.log
                 * * * * * (cd /home/ubuntu; ./midihub.py) >>/home/ubuntu/output.log 2>&1
+                * * * * * (cd /home/ubuntu; grep Latency *.log | ./update-latency.py)
               mode: '000644'
               owner: ubuntu
               group: ubuntu
@@ -138,10 +163,13 @@ Resources:
           cd /home/ubuntu
           git clone https://github.com/Brettles/midihub
           ln midihub/midihub.py midihub.py
-          chmod +x midihub.py
+          ln midihub/update-latency.py update-latency.py
+          cd midihub
+          python3 create-s3-bucket.py
+          chmod +x midihub.py update-latency.py
           chown -R ubuntu:ubuntu *
           crontab -u ubuntu crontab.ubuntu
-          sudo crontab -r root crontab.root
+          sudo crontab -u root crontab.root
           sudo reboot
 
   SecurityGroup:
@@ -191,6 +219,39 @@ Resources:
             Action:
             - Lightsail:GetRegions
             Resource: '*'
+      - PolicyName: DynamoDB
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action: dynamodb:BatchWriteItem
+            Resource: !GetAtt DynamoDBTable.Arn
+      - PolicyName: CloudFront
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            -  cloudfront:GetDistributionConfig
+            -  cloudfront:UpdateDistribution
+            Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+      - PolicyName: CloudFrontOAC
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action: cloudfront:CreateOriginAccessControl
+            Resource: '*'
+      - PolicyName: S3
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            -  s3:CreateBucket
+            -  s3:PutBucketPolicy
+            -  s3:PutObject
+            Resource: '*'
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -200,3 +261,151 @@ Resources:
       Roles: 
        - !Ref InstanceRole
 
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'midiHub-${AWS::StackName}'
+      AttributeDefinitions:
+        - AttributeName: "clientId"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "clientId"
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        Enabled: True
+        AttributeName: expiryTime
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'midiHub-Lambda-${AWS::StackName}'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  DynamoDBPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub 'midiHub-Lambda-DynamoDB-${AWS::StackName}'
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Resource: !GetAtt DynamoDBTable.Arn
+            Action: dynamodb:Scan
+      Roles:
+        - !Ref LambdaRole
+
+  LambdaGetLatencyStats:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'midiHub-GetLatencyStats-${AWS::StackName}'
+      Handler: index.lambda_handler
+      Runtime: python3.10
+      Architectures: [arm64]
+      Timeout: 10
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          TableName: !Ref DynamoDBTable
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import logging
+          
+          dynamodb = boto3.client('dynamodb')
+          
+          tableName = os.environ.get('TableName')
+          
+          logging.basicConfig()
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              global logger, tableName
+          
+              if not tableName:
+                  logger.error('TableName not set - stopping')
+                  return {'statusCode':500, body:'TableName not set'}
+          
+              paginator = dynamodb.get_paginator('scan')
+              iterator = paginator.paginate(TableName=tableName)
+          
+              output = []
+              for page in iterator:
+                  for stat in page['Items']:
+                      (name,port) = stat['clientId']['S'].split('-')
+          
+                      item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
+                              'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
+                              'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
+                      output.append(item)
+          
+              return(output)
+
+  LambdaFunctionUrl:
+    Type: AWS::Lambda::Url
+    DependsOn: LambdaGetLatencyStats
+    Properties: 
+      AuthType: NONE
+      Cors: 
+        AllowOrigins:
+        - '*'
+      TargetFunctionArn: !GetAtt LambdaGetLatencyStats.Arn
+
+  LamdbaFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaGetLatencyStats
+      FunctionUrlAuthType: NONE
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+
+  #
+  # Dummy CloudFront distribution which will be modified when the EC2 instance
+  # starts. A script on the instance will create a S3 bucket; modify the base
+  # HTML file with the Lambda function URL; then update the CloudFront
+  # distribution to point to the bucket.
+  #
+  CloudFrontDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'mibiHub-${AWS::StackName}'
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: 'PriceClass_All'
+        Origins:
+        - Id: DefaultOrigin
+          DomainName: aws.amazon.com
+          CustomOriginConfig:
+            OriginProtocolPolicy: https-only
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          TargetOriginId: DefaultOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          ForwardedValues:
+            QueryString: 'false'
+            Cookies:
+              Forward: none
