@@ -26,7 +26,7 @@ def lambda_handler(event, context):
         for stat in page['Items']:
             (name,port) = stat['clientId']['S'].split('-')
 
-            item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['S'],
+            item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
                     'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
                     'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
             output.append(item)

@@ -71,9 +71,12 @@ def main():
         for id in latencyStats:
             average = round(sum(latencyStats[id])/len(latencyStats[id]), 1)
 
+            now = int(time.time())
+            expiry = now+86400
+
             # Need to store floats as strings because DynamoDB doesn't support
             # float typess here
-            item = {'clientId':id, 'timestamp':str(int(time.time())),
+            item = {'clientId':id, 'timestamp':now, 'expiryTime':expiry,
                     'lastLatency':str(latencyStats[id][-1]), 'averageLatency':str(average),
                     'maxLatency': str(max(latencyStats[id])), 'minLatency':str(min(latencyStats[id]))}
             batch.put_item(Item=item)
