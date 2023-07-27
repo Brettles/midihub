@@ -33,16 +33,30 @@ def main():
         sys.exit(1)
 
     ddbTable = dynamodb.Table(tableName)
-    participants = []
+    participants = {}
+    currentPort = "0"
+    currentParticipants = []
 
     output = os.popen('/usr/bin/aconnect -l').read().strip().split('\n')
     for line in output:
+        index = line.find('rtpmidi midiHub-')
+        if index > 0:
+            if len(currentParticipants) > 0:
+                participants[currentPort] = currentParticipants
+                currentParticipants = []
+            currentPort = line[index+16:line.rindex("'")]
+            continue
+
         if line.find('client') == 0: continue
         if line.find('    0 ') == 0: continue
         if line.find('Announce') > 0: continue
         if line.find('midiHub-') > 0: continue
+
         clientName = line[7:line.rindex("'")-1]
-        participants.append(clientName)
+        currentParticipants.append(clientName)
+
+    if len(currentParticipants) > 0:
+        participants[currentPort] = currentParticipants
 
     ddbTable.put_item(Item={'clientId':'Participants', 'list':json.dumps(participants)})
 
