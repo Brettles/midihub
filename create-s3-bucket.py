@@ -152,13 +152,7 @@ def main():
         return
 
     try:
-        response = s3.put_object(Bucket=randomName, Key='midiub.html', Body=newHTML, ContentType='text/html')
-    except Exception as e:
-        logger.error(f'Failed to upload HTML to S3: {e}')
-        return
-
-    try:
-        response = s3.put_object(Bucket=randomName, Key='midihub.html', Body=newHTML)
+        response = s3.put_object(Bucket=randomName, Key='midihub.html', Body=newHTML, ContentType='text/html')
     except Exception as e:
         logger.error(f'Failed to upload HTML to S3: {e}')
         return
