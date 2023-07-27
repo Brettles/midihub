@@ -35,14 +35,19 @@ Outputs:
   ElasticIP:
     Description: Public IP address of MIDI hub server
     Value: !Ref ElasticIP
-  CloudFrontDistribution:
+  GlobalIP:
+    Description: Globally available IP addresses of MIDI hub server
+    Value: !Join [',', !GetAtt GlobalAccelerator.Ipv4Addresses]
+  LatencyStatisticsPage:
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}/midihub.html'
+  ParticipantsPage:
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}/participants.html'
   ListenerPorts:
     Description: UDP ports for MIDI daemon
     Value: !Ref ListenerPorts
-  LambdaFunctionUrl:
-    Description: Substitute into midihub.html to see latency updates
-    Value: !GetAtt LambdaFunctionUrl.FunctionUrl
+  LambdaFunctionURL:
+    Description: Substitute into midihub.html or call directly to see latency updates
+    Value: !Sub ${APIGateway.ApiEndpoint}/latency
 
 Mappings:
   AWSRegion2AMI:
@@ -94,26 +99,22 @@ Resources:
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/midiports":
-              content: !Sub |
-                ${ListenerPorts}
+              content: !Sub ${ListenerPorts}
               mode: '000644'
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/dynamodbtable":
-              content: !Sub |
-                ${DynamoDBTable}
+              content: !Sub ${DynamoDBTable}
               mode: '000644'
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/cloudfrontdistribution":
-              content: !Sub |
-                ${CloudFrontDistribution}
+              content: !Sub ${CloudFrontDistribution}
               mode: '000644'
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/lambdafunctionurl":
-              content: !Sub |
-                ${LambdaFunctionUrl.FunctionUrl}
+              content: !Sub ${APIGateway.ApiEndpoint}/latency
               mode: '000644'
               owner: ubuntu
               group: ubuntu
@@ -130,6 +131,7 @@ Resources:
                 @reboot rm /home/ubuntu/output-*.log
                 * * * * * (cd /home/ubuntu; ./midihub.py) >>/home/ubuntu/output.log 2>&1
                 * * * * * (cd /home/ubuntu; grep Latency *.log | ./update-latency.py)
+                * * * * * (cd /home/ubuntu/midihub/; ./update-participants.py)
               mode: '000644'
               owner: ubuntu
               group: ubuntu
@@ -154,7 +156,15 @@ Resources:
           sudo ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
           /usr/local/bin/cfn-init -v --stack ${AWS::StackName} --resource MidiHubInstance --region ${AWS::Region}
           /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource MidiHubInstance --region ${AWS::Region}
-          sudo apt-get install cmake g++ pkg-config libavahi-client-dev libfmt-dev alsa-utils alsa-base libghc-alsa-core-dev avahi-utils linux-modules-extra-`uname -r` -y
+          #
+          # Why use three install lines rather than one?
+          # Because sometimes you can request too many packages from the repo
+          # host and it times out; then the whole build stops - that's mostly
+          # inconvenient
+          #
+          sudo apt-get install cmake g++ pkg-config -y
+          sudo apt-get install libavahi-client-dev libfmt-dev alsa-utils alsa-base -y
+          sudo apt-get install libghc-alsa-core-dev avahi-utils linux-modules-extra-`uname -r` -y
           sudo pip3 install boto3
           cd /home/ubuntu
           git clone https://github.com/davidmoreno/rtpmidid
@@ -167,7 +177,7 @@ Resources:
           cd midihub
           python3 create-s3-bucket.py
           cd /home/ubuntu
-          chmod +x midihub.py update-latency.py
+          chmod +x midihub.py update-latency.py midihub/update-participants.py
           chown -R ubuntu:ubuntu *
           crontab -u ubuntu crontab.ubuntu
           sudo crontab -u root crontab.root
@@ -185,7 +195,7 @@ Resources:
         CidrIp: 0.0.0.0/0
       - IpProtocol: udp
         FromPort: 5000
-        ToPort: 5600
+        ToPort: 6000
         CidrIp: 0.0.0.0/0
       - IpProtocol: icmp
         FromPort: -1
@@ -260,18 +270,18 @@ Resources:
       InstanceProfileName: !Sub 'midiHub-${AWS::StackName}'
       Path: /
       Roles: 
-       - !Ref InstanceRole
+      - !Ref InstanceRole
 
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub 'midiHub-${AWS::StackName}'
       AttributeDefinitions:
-        - AttributeName: "clientId"
-          AttributeType: "S"
+      - AttributeName: "clientId"
+        AttributeType: "S"
       KeySchema:
-        - AttributeName: "clientId"
-          KeyType: HASH
+      - AttributeName: "clientId"
+        KeyType: HASH
       BillingMode: PAY_PER_REQUEST
       TimeToLiveSpecification:
         Enabled: True
@@ -283,12 +293,12 @@ Resources:
       RoleName: !Sub 'midiHub-Lambda-${AWS::StackName}'
       AssumeRolePolicyDocument:
         Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
             Action:
-              - sts:AssumeRole
+            - sts:AssumeRole
       ManagedPolicyArns:
         - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
       AssumeRolePolicyDocument:
@@ -296,9 +306,9 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
-                - lambda.amazonaws.com
+              - lambda.amazonaws.com
             Action:
-              - sts:AssumeRole
+            - sts:AssumeRole
 
   DynamoDBPolicy:
     Type: AWS::IAM::Policy
@@ -319,7 +329,7 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.10
       Architectures: [arm64]
-      Timeout: 10
+      Timeout: 20
       Role: !GetAtt LambdaRole.Arn
       Environment:
         Variables:
@@ -344,7 +354,7 @@ Resources:
           
               if not tableName:
                   logger.error('TableName not set - stopping')
-                  return {'statusCode':500, body:'TableName not set'}
+                  return {'statusCode':500, 'body':'TableName not set'}
           
               paginator = dynamodb.get_paginator('scan')
               iterator = paginator.paginate(TableName=tableName)
@@ -352,32 +362,164 @@ Resources:
               output = []
               for page in iterator:
                   for stat in page['Items']:
-                      (name,port) = stat['clientId']['S'].split('-')
-          
-                      item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
-                              'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
-                              'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
-                      output.append(item)
+                      if stat['clientId']['S'] == 'Participants': continue
+
+                      try:
+                          (name,port) = stat['clientId']['S'].split('-')
+
+                          item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
+                                  'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
+                                  'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
+                      except:
+                          logger.error(f'Cannot interpret item {stat}')
+                          continue
           
               return(output)
 
-  LambdaFunctionUrl:
-    Type: AWS::Lambda::Url
-    DependsOn: LambdaGetLatencyStats
-    Properties: 
-      AuthType: NONE
-      Cors: 
-        AllowOrigins:
-        - '*'
-      TargetFunctionArn: !GetAtt LambdaGetLatencyStats.Arn
+  LambdaGetParticipants:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'midiHub-GetParticipants-${AWS::StackName}'
+      Handler: index.lambda_handler
+      Runtime: python3.10
+      Architectures: [arm64]
+      Timeout: 20
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          TableName: !Ref DynamoDBTable
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import logging
+          
+          dynamodb = boto3.client('dynamodb')
+          
+          tableName = os.environ.get('TableName')
+          
+          logging.basicConfig()
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              global logger, tableName
+          
+              if not tableName:
+                  logger.error('TableName not set - stopping')
+                  return {'statusCode':500, 'body':'TableName not set'}
+          
+              try:
+                  response = dynamodb.get_item(TableName=tableName, Key={'clientId':{'S':'Participants'}})
+              except Exception as e:
+                  logger.error(f'Did not get participants: {e}')
+                  return {'statusCode':500, 'body':'Participants not found'}
+          
+              try:
+                  participants = json.loads(response['Item']['list']['S'])
+              except Exception as e:
+                  logger.error(f'Cloud not load participants: {e}')
+                  return {'statusCode':500, 'body':'Participants JSON error'}
+          
+              return(participants)
 
-  LamdbaFunctionUrlPermission:
+  APIGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub 'midiHub-${AWS::StackName}'
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowHeaders:
+        - "*"
+        AllowMethods:
+        - "*"
+        ExposeHeaders:
+        - "*"
+        AllowOrigins:
+        - "*"
+
+  APIGatewayStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref APIGateway
+      AutoDeploy: True
+      StageName: $default
+
+  IntegrationLatencyStats:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref APIGateway
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: 2.0
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:midiHub-GetLatencyStats-${AWS::StackName}/invocations"
+
+  ApiRouteLatencyStats:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref APIGateway
+      RouteKey: "GET /latency"
+      Target: !Join ["/", ["integrations", !Ref "IntegrationLatencyStats"]]
+
+  LambdaPermissionLatencyStats:
     Type: AWS::Lambda::Permission
     Properties:
+      Action: lambda:invokeFunction
       FunctionName: !Ref LambdaGetLatencyStats
-      FunctionUrlAuthType: NONE
-      Action: lambda:InvokeFunctionUrl
-      Principal: '*'
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/latency"
+
+  IntegrationParticipants:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref APIGateway
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: 2.0
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:midiHub-GetParticipants-${AWS::StackName}/invocations"
+
+  ApiRouteParticipants:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref APIGateway
+      RouteKey: "GET /participants"
+      Target: !Join ["/", ["integrations", !Ref "IntegrationParticipants"]]
+
+  LambdaPermissionParticipants:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !Ref LambdaGetParticipants
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/participants"
+
+  GlobalAccelerator:
+    Type: AWS::GlobalAccelerator::Accelerator
+    Properties:
+      Name: !Sub 'mibiHub-${AWS::StackName}'
+      IpAddressType: IPV4
+      Enabled: True
+
+  GlobalAcceleratorListener:
+    Type: AWS::GlobalAccelerator::Listener
+    Properties:
+      AcceleratorArn: !Ref GlobalAccelerator
+      ClientAffinity: SOURCE_IP
+      Protocol: UDP
+      PortRanges:
+      - FromPort: 5000
+        ToPort: 6000
+
+  GlobalAcceleratorEndpoint:
+    Type: AWS::GlobalAccelerator::EndpointGroup
+    Properties:
+      ListenerArn: !Ref GlobalAcceleratorListener
+      EndpointGroupRegion: !Sub ${AWS::Region}
+      HealthCheckPort: 22
+      HealthCheckProtocol: TCP
+      EndpointConfigurations:
+      - EndpointId: !GetAtt ElasticIP.AllocationId
 
   #
   # Dummy CloudFront distribution which will be modified when the EC2 instance
@@ -386,7 +528,7 @@ Resources:
   # distribution to point to the bucket.
   #
   CloudFrontDistribution:
-    Type: 'AWS::CloudFront::Distribution'
+    Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Comment: !Sub 'mibiHub-${AWS::StackName}'
@@ -410,3 +552,4 @@ Resources:
             QueryString: 'false'
             Cookies:
               Forward: none
+
