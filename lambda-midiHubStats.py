@@ -24,6 +24,8 @@ def lambda_handler(event, context):
     output = []
     for page in iterator:
         for stat in page['Items']:
+            if stat['clientId']['S'] == 'Participants': continue
+
             try:
                 (name,port) = stat['clientId']['S'].split('-')
 
