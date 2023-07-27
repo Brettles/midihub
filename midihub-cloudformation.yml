@@ -45,9 +45,12 @@ Outputs:
   ListenerPorts:
     Description: UDP ports for MIDI daemon
     Value: !Ref ListenerPorts
-  LambdaFunctionURL:
+  LatencyURL:
     Description: Substitute into midihub.html or call directly to see latency updates
     Value: !Sub ${APIGateway.ApiEndpoint}/latency
+  ParticipantURL:
+    Description: Substitute into participants.html or call directly to see participants
+    Value: !Sub ${APIGateway.ApiEndpoint}/participants
 
 Mappings:
   AWSRegion2AMI:
