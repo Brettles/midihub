@@ -58,14 +58,24 @@ def main():
 
     try:
         with open('midihub.html') as webfile:
-            originalHTML = webfile.read().strip()
+            originalLatencyHTML = webfile.read().strip()
     except FileNotFoundError:
-        logger.error('Cannot read HTML source stopping')
+        logger.error('Cannot read HTML latency source - stopping')
         return
     except Exception as e:
-        logger.error(f'Cannot read HTML source file: {e}')
+        logger.error(f'Cannot read HTML latency source file: {e}')
 
-    newHTML = originalHTML.replace('--LAMBDAURL--', functionUrl)
+    try:
+        with open('participants.html') as webfile:
+            originalParticipantHTML = webfile.read().strip()
+    except FileNotFoundError:
+        logger.error('Cannot read HTML participant source - stopping')
+        return
+    except Exception as e:
+        logger.error(f'Cannot read HTML participant  source file: {e}')
+
+    newLatencyHTML = originalLatencyHTML.replace('--LAMBDAURL--', functionUrl)
+    newParticipantHTML = originalParticipantHTML.replace('--LAMBDAURL--', functionUrl)
 
     try:
         response = requests.get('http://169.254.169.254/latest/dynamic/instance-identity/document')
@@ -152,9 +162,15 @@ def main():
         return
 
     try:
-        response = s3.put_object(Bucket=randomName, Key='midihub.html', Body=newHTML, ContentType='text/html')
+        response = s3.put_object(Bucket=randomName, Key='midihub.html', Body=newLatencyHTML, ContentType='text/html')
     except Exception as e:
-        logger.error(f'Failed to upload HTML to S3: {e}')
+        logger.error(f'Failed to upload latency HTML to S3: {e}')
+        return
+
+    try:
+        response = s3.put_object(Bucket=randomName, Key='participants.html', Body=newParticipantHTML, ContentType='text/html')
+    except Exception as e:
+        logger.error(f'Failed to upload participant HTML to S3: {e}')
         return
 
     logger.info(f'Created S3 bucket {randomName} and updated origin {config["ETag"]}')
