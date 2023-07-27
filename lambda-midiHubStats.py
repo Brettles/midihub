@@ -16,7 +16,7 @@ def lambda_handler(event, context):
     
     if not tableName:
         logger.error('TableName not set - stopping')
-        return {'statusCode':500, body:'TableName not set'}
+        return {'statusCode':500, 'body':'TableName not set'}
 
     paginator = dynamodb.get_paginator('scan')
     iterator = paginator.paginate(TableName=tableName)
