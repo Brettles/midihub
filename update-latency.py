@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 #
-# updatelatency.py
+# update-latency.py
 #  Intended to be run as a pipe destination. For example:
 #   grep Latency *.log | updatelatency.py
 #
