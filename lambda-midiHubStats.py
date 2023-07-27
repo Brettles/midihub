@@ -24,11 +24,16 @@ def lambda_handler(event, context):
     output = []
     for page in iterator:
         for stat in page['Items']:
-            (name,port) = stat['clientId']['S'].split('-')
+            try:
+                (name,port) = stat['clientId']['S'].split('-')
 
-            item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
-                    'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
-                    'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
+                item = {'clientName':name, 'clientPort':port, 'timestamp': stat['timestamp']['N'],
+                        'averageLatency':stat['averageLatency']['S'], 'maxLatency':stat['maxLatency']['S'],
+                        'minLatency':stat['minLatency']['S'], 'lastLatency':stat['lastLatency']['S']}
+            except:
+                logger.error(f'Cannot interpret item {stat}')
+                continue
+ 
             output.append(item)
 
     return(output) 
