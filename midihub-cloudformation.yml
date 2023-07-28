@@ -330,7 +330,7 @@ Resources:
     Properties:
       FunctionName: !Sub 'midiHub-GetLatencyStats-${AWS::StackName}'
       Handler: index.lambda_handler
-      Runtime: python3.10
+      Runtime: python3.11
       Architectures: [arm64]
       Timeout: 20
       Role: !GetAtt LambdaRole.Arn
@@ -384,7 +384,7 @@ Resources:
     Properties:
       FunctionName: !Sub 'midiHub-GetParticipants-${AWS::StackName}'
       Handler: index.lambda_handler
-      Runtime: python3.10
+      Runtime: python3.11
       Architectures: [arm64]
       Timeout: 20
       Role: !GetAtt LambdaRole.Arn
