@@ -45,10 +45,10 @@ Outputs:
   ListenerPorts:
     Description: UDP ports for MIDI daemon
     Value: !Ref ListenerPorts
-  LatencyURL:
+  LatencyEndpoint:
     Description: Substitute into midihub.html or call directly to see latency updates
     Value: !Sub ${APIGateway.ApiEndpoint}/latency
-  ParticipantURL:
+  ParticipantEndpoint:
     Description: Substitute into participants.html or call directly to see participants
     Value: !Sub ${APIGateway.ApiEndpoint}/participants
 
@@ -116,8 +116,8 @@ Resources:
               mode: '000644'
               owner: ubuntu
               group: ubuntu
-            "/home/ubuntu/lambdafunctionurl":
-              content: !Sub ${APIGateway.ApiEndpoint}/latency
+            "/home/ubuntu/apigatewayendpoint":
+              content: !Sub ${APIGateway.ApiEndpoint}/
               mode: '000644'
               owner: ubuntu
               group: ubuntu

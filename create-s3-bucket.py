@@ -47,8 +47,8 @@ def main():
         return
 
     try:
-        with open('../lambdafunctionurl') as urlfile:
-            functionUrl = urlfile.read().strip()
+        with open('../apigatewayendpoint') as urlfile:
+            endpointUrl = urlfile.read().strip()
     except FileNotFoundError:
         logger.error('No Lambda function URL file found - stopping')
         return
@@ -74,8 +74,8 @@ def main():
     except Exception as e:
         logger.error(f'Cannot read HTML participant  source file: {e}')
 
-    newLatencyHTML = originalLatencyHTML.replace('--LAMBDAURL--', functionUrl)
-    newParticipantHTML = originalParticipantHTML.replace('--LAMBDAURL--', functionUrl)
+    newLatencyHTML = originalLatencyHTML.replace('--LAMBDAURL--', endpointurl+'latency')
+    newParticipantHTML = originalParticipantHTML.replace('--LAMBDAURL--', endpointurl+'participants')
 
     try:
         response = requests.get('http://169.254.169.254/latest/dynamic/instance-identity/document')
