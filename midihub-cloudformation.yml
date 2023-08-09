@@ -214,7 +214,7 @@ Resources:
   InstanceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'midiHub-${AWS::StackName}'
+      RoleName: !Sub 'midiHub-EC2-${AWS::StackName}'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
