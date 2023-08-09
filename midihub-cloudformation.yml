@@ -318,12 +318,14 @@ Resources:
   DynamoDBPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Sub 'midiHub-Lambda-DynamoDB-${AWS::StackName}'
+      PolicyName: DynamoDB
       PolicyDocument:
         Statement:
           - Effect: Allow
             Resource: !GetAtt DynamoDBTable.Arn
-            Action: dynamodb:Scan
+            Action:
+            - dynamodb:Scan
+            - dynamodb:GetItem
       Roles:
         - !Ref LambdaRole
 
