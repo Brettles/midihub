@@ -377,6 +377,8 @@ Resources:
                           logger.error(f'Cannot interpret item {stat}')
                           continue
           
+                      output.append(item)
+
               return(output)
 
   LambdaGetParticipants:
