@@ -238,7 +238,9 @@ Resources:
           Version: 2012-10-17
           Statement:
           - Effect: Allow
-            Action: dynamodb:BatchWriteItem
+            Action: 
+            - dynamodb:BatchWriteItem
+            - dynamodb:PutItem
             Resource: !GetAtt DynamoDBTable.Arn
       - PolicyName: CloudFront
         PolicyDocument:
