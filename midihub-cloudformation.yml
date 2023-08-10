@@ -30,6 +30,9 @@ Parameters:
     Description: Comma-separated list of UDP ports to listen on
     Type: String
     Default: 5008,5010
+  RebootPassword:
+    Description: For rebooting the hub instance
+    Type: String
 
 Outputs:
   ElasticIP:
@@ -51,6 +54,9 @@ Outputs:
   ParticipantEndpoint:
     Description: Substitute into participants.html or call directly to see participants
     Value: !Sub ${APIGateway.ApiEndpoint}/participants
+  RebootEndpoint:
+    Description: Reboot the hub instance
+    Value: !Sub ${APIGateway.ApiEndpoint}/reboot
 
 Mappings:
   AWSRegion2AMI:
@@ -329,6 +335,18 @@ Resources:
       Roles:
         - !Ref LambdaRole
 
+  EC2Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EC2
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Resource: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${MidiHubInstance}"
+            Action: ec2:RebootInstances
+      Roles:
+        - !Ref LambdaRole
+
   LambdaGetLatencyStats:
     Type: AWS::Lambda::Function
     Properties:
@@ -433,6 +451,58 @@ Resources:
           
               return(participants)
 
+  LambdaRebootHub:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'midiHub-RebootHub-${AWS::StackName}'
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Architectures: [arm64]
+      Timeout: 20
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          InstanceId: !Ref MidiHubInstance
+          RebootPassword: !Ref RebootPassword
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import logging
+          
+          ec2 = boto3.client('ec2')
+          
+          instanceId = os.environ.get('InstanceId')
+          rebootPassword = os.environ.get('RebootPassword')
+          
+          logging.basicConfig()
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+          
+          def lambda_handler(event, context):
+              global logger, instanceId
+              
+              if not instanceId or not rebootPassword:
+                  logger.error('Variables not set - stopping')
+                  return {'statusCode':500, 'body':'InstanceId not set'}
+                  
+              password = event.get('rawQueryString')
+              if not password:
+                  logger.error('TableName not set - stopping')
+                  return {'statusCode':401, 'body':'Not today'}
+                  
+              if password != rebootPassword:
+                  logger.error('TableName not set - stopping')
+                  return {'statusCode':401, 'body':'Not for you'}
+                  
+              try:
+                  ec2.reboot_instances(InstanceIds=[instanceId])
+              except Exception as e:
+                  logger.error(f'Failed to reboot {instanceId}: {e}')
+                  return {'statusCode':200, 'body':'Failed'}
+                  
+              return {'statusCode':200, 'body':'Ok'}
+
   APIGateway:
     Type: AWS::ApiGatewayV2::Api
     Properties:
@@ -488,12 +558,28 @@ Resources:
       PayloadFormatVersion: 2.0
       IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:midiHub-GetParticipants-${AWS::StackName}/invocations"
 
+  IntegrationReboot:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref APIGateway
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: 2.0
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:midiHub-RebootHub-${AWS::StackName}/invocations"
+
   ApiRouteParticipants:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref APIGateway
       RouteKey: "GET /participants"
       Target: !Join ["/", ["integrations", !Ref "IntegrationParticipants"]]
+
+  ApiRouteReboot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref APIGateway
+      RouteKey: "GET /reboot"
+      Target: !Join ["/", ["integrations", !Ref "IntegrationReboot"]]
 
   LambdaPermissionParticipants:
     Type: AWS::Lambda::Permission
@@ -502,6 +588,14 @@ Resources:
       FunctionName: !Ref LambdaGetParticipants
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/participants"
+
+  LambdaPermissionReboot:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !Ref LambdaRebootHub
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/reboot"
 
   GlobalAccelerator:
     Type: AWS::GlobalAccelerator::Accelerator
