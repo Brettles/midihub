@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     password = event.get('rawQueryString')
     if not password:
         logger.error('TableName not set - stopping')
-        return {'statusCode':401, 'body':'Not today'}
+        return {'statusCode':401, 'body':'Say please'}
         
     if password != rebootPassword:
         logger.error('TableName not set - stopping')
