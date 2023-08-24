@@ -14,7 +14,7 @@ The second problem is solve using Alsa as well - there is a command-line tool ca
 
 In this repo this is what you get:
 
- - midihub.pl - Python script that launches `rtpmidid` and when participants join each channel (identified by UDP ports) it automatically joins those participants with each other. This can listen on one or more ports (typically starting at port 5004 and going up in increments of two - it's a defacto thing in the RTP MIDI world).
+ - midihub.py - Python script that launches `rtpmidid` and when participants join each channel (identified by UDP ports) it automatically joins those participants with each other. This can listen on one or more ports (typically starting at port 5004 and going up in increments of two - it's a defacto thing in the RTP MIDI world).
  - midihub-cloudformation.yml - [AWS CloudFormation](https://aws.amazon.com/cloudformation/) template for building an appropriate Linux instance and deploying into AWS. More details on that below.
  - lambda-midiHubParticipants.py and lambda-midiHubStats.py - These are the code for two Lambda functions which are automatically deployed by the CloudFormation template to respond to request when asked for participant and latency information. If you're not deploying this using CloudFormation you can use this code to query the database.
  - midihub.html and participants.html - Source HTML files for a (very simple!) web front end to call the two Lambda functions via API Gateway. Feel free to modify these or embed the code into your own web page. Designed to show who is connected and what their round-trip latency is. These are modified during setup with the appropriate API Gateway endpoint.
@@ -86,6 +86,6 @@ Install the Python `boto3` library (`sudo pip3 install boto3`) - this is used in
 
 Download and build `rtpmidid` from https://github.com/davidmoreno/rtpmidid
 
-Download `midihub.pl` and put it somewhere that you can run it. In AWS this is triggered every minute by cron - it automatically detects if it is still running and self-terminates if so. The running version starts `rtpmidid` and uses `aconnect` to join the MIDI sessions together. Options for where to find binaries are in `midihub.pl`.
+Download `midihub.py` and put it somewhere that you can run it. In AWS this is triggered every minute by cron - it automatically detects if it is still running and self-terminates if so. The running version starts `rtpmidid` and uses `aconnect` to join the MIDI sessions together. Options for where to find binaries are in `midihub.py`.
 
 It's up to you whether you display the statistic or not. The `update-latency.py` and `update-participants.py` scripts can help here. They put the data into DynamoDb - you can use a different database if you like.
