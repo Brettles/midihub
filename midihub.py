@@ -14,10 +14,19 @@
 #  host.
 #
 #  To do this we can get Alsa to connect MIDI participants together as if
-#  they were local MIDI devices. This utility automatically joins all
-#  participants connected to a specific MIDI client (or port) together.
+#  they were local MIDI devices. This utility will join participants together
+#  if their names end in "In", "Out" or "Sen", "Rec". (See code in
+#  checkMidiParticipants().) The intention is to only send messages from MIDI
+#  "out" ports to MIDI "in ports". If the names don't match then no connection
+#  is made.
+#
 #  Essentially, this mimics a bunch of MIDI devices connected to each other
 #  via cables in the same room but this is over the internet.
+#
+#  This behaviour may not be desirable. You can automatically connect all
+#  participants connected to a specific MIDI client (or port) together by
+#  specifying '--connectall' at the command line. However this may result in
+#  undesirable feedback loops between connected instruments.
 #
 #  Prerequisite Ubuntu packages:
 #   cmake g++ pkt-config libavahi-client-dev libfmt-dev alsa-utils alsa-base
@@ -60,6 +69,7 @@ MIDI_DAEMON = 'rtpmidid/build/src/rtpmidid'
 midiPorts = [5004, 5006]
 logger = None
 location = ''
+connectInAndOut = False
 
 #
 # Main loop which does a few startup checks and runs forever.
@@ -142,15 +152,23 @@ def checkDaemon():
 # suitable for our purposes here.
 #
 def checkMidiParticipants():
+    global logger,connectInAndOut
+
     logger.debug('Getting output from aconnect')
-    output = os.popen('aconnect -l').read().split('\n')
+
+    try:
+        output = os.popen('aconnect -l').read().split('\n')
+    except Exception as e:
+        logger.error(f'Failed to get aconnect output: {e}')
+        return
+
     for index in range(0,len(output)):
-        logger.debug(f'Line: {output[index]}')
+        logger.debug(f' Line: {output[index]}')
         if output[index].find('client ') == 0:
             try:
                 clientNumber = re.findall(r'\d+', output[index])[0]
             except:
-                logger.warning(f'Did not see client id in {output[index]} - skipping')
+                logger.warning(f'  Did not see client id in {output[index]} - skipping')
                 continue
             if int(clientNumber) < 128: continue
 
@@ -163,6 +181,7 @@ def checkMidiParticipants():
                 if output[search].find('Connect') > -1: continue
                 if not len(output[search]): continue
 
+                logger.debug(f'  Client details: {output[search]}')
                 try:
                     participantNumber = re.findall(r'\d+', output[search])[0]
                     participantName   = re.findall(r"'.+'", output[search])[0][1:-1].strip()
@@ -172,12 +191,26 @@ def checkMidiParticipants():
                     break
 
             if len(participants) > 1:
-                logger.info(f'client {clientNumber}: {participants}')
-                for sourceConnection in participants.keys():
-                    for destConnection in participants.keys():
-                        if sourceConnection == destConnection: continue
-                        logger.debug(f'Adding connection in {clientNumber} for {sourceConnection} and {destConnection}')
-                        os.system(f'aconnect {clientNumber}:{sourceConnection} {clientNumber}:{destConnection} >/dev/null 2>&1')
+                logger.debug(f'  client {clientNumber}: {participants} connectAll={connectInAndOut}')
+                
+                if connectInAndOut:
+                    for sourceConnection in participants.keys():
+                        for destConnection in participants.keys():
+                            if sourceConnection == destConnection: continue
+                            logger.debug(f'  Adding connection in {clientNumber} for {sourceConnection} and {destConnection}')
+                            os.system(f'aconnect {clientNumber}:{sourceConnection} {clientNumber}:{destConnection} >/dev/null 2>&1')
+                else:
+                    midiIn = []
+                    midiOut = []
+                    for id in participants.keys():
+                        if participants[id][-2:].lower() == 'in' or participants[id][-3:].lower() == 'rec': midiIn.append(id)
+                        if participants[id][-3:].lower() == 'out' or participants[id][-3:].lower() == 'sen': midiOut.append(id)
+
+                    logger.debug(f'  midiIn {midiIn} midiOut {midiOut}')
+                    for inId in midiIn:
+                        for outId in midiOut:
+                            logger.debug(f'  Adding connection in {clientNumber} for {outId} to {inId}')
+                            os.system(f'aconnect {clientNumber}:{outId} {clientNumber}:{inId} >/dev/null 2>&1')
 
 #
 # Although it's not completely harmful we don't really want more than one
@@ -243,11 +276,16 @@ def checkPrerequisites():
 # ports configuration file.
 #
 def configure(singal, frame):
-    global logger, location, midiPorts
+    global logger, location, midiPorts, connectInAndOut
 
     logging.basicConfig()
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
+
+    for arg in sys.argv[1:]:
+        if arg == '--connectall':
+          connectInAndOut = True
+          logger.info('Cross-connecting all in and out ports')
 
     try:
         with open('midiports') as portsFile:
