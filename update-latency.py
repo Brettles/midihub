@@ -3,7 +3,7 @@
 #
 # update-latency.py
 #  Intended to be run as a pipe destination. For example:
-#   grep Latency *.log | updatelatency.py
+#   grep Latency *.log | update-latency.py
 #
 #  Only processes lines from rtpmidid that have 'Latency' on them; takes the
 #  client name, connected port and latency numbers and puts them into DynamoDB.
