@@ -128,7 +128,6 @@ Resources:
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/crontab.root":
-            "/home/ubuntu/crontab.root":
               content: !Sub |
                 @reboot sudo apt-get install linux-modules-extra-`uname -r` -y
               mode: '000644'
