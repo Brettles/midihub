@@ -21,7 +21,7 @@ In this repo this is what you get:
  - update-latency.py and update-participants.py - Two scripts that run on the instance. They trawl the log files from `rtpmidid` and send the contents to a DynamoDB database. Scheduled to run via cron once every minute.
  - create-s3-bucket.py - After the instance has been created this runs to create a S3 bucket with a unique name; link the CloudFront distirbution to it; set up secure access (S3 is not public; only CloudFront can access it); and uploads the HTML files after modifying them with the API Gateway endpoint URL. Note that if you are not deploying in the `us-east-1` region it make take some time (hours) for the CloudFront/S3 pair to work correctly.
 
-The intention is that you can run this solution when you need it and shut it down when you don't. To shut the solution down, you can go into the [EC2 console](https://ap-southeast-1.console.aws.amazon.com/ec2/), select the instance labelled `midiHub` then choose "Instance state" (top-right of the browser window) and click "Stop instance". You'll notice there is a "Start instance" choice there too - that's how you can restart the virtual machine running MidiHub.
+The intention is that you can run this solution when you need it and shut it down when you don't. To shut the solution down, you can go into the [EC2 console](https://console.aws.amazon.com/ec2/), select the instance labelled `midiHub` then choose "Instance state" (top-right of the browser window) and click "Stop instance". You'll notice there is a "Start instance" choice there too - that's how you can restart the virtual machine running MidiHub.
 
 If you choose "Terminate instance" then everything will be deleted - you'll have to deploy it again (see the instructions in the next section). Terminating the instance will mean that you are not paying anything while you are not using it. When it is in a "stopped" state you will be charge a little for the persitent storage - about US$0.10 (that's ten cents) per month.
 
@@ -29,7 +29,7 @@ EC2 instance pricing [can be found here](https://aws.amazon.com/ec2/pricing/on-d
 
 ## Deploy the CloudFormation template
 
-To deploy in AWS, go to the [CloudFromation console](https://ap-southeast-1.console.aws.amazon.com/cloudformation/) and make sure you're deploying in the right AWS region. Typically you want to choose the region which is the lowest latency (over the internet) between all of the participants and that region. Then choose "Create stack" and when asked, upload the template file from this repo.
+To deploy in AWS, go to the [CloudFromation console](https://console.aws.amazon.com/cloudformation/) and make sure you're deploying in the right AWS region. Typically you want to choose the region which is the lowest latency (over the internet) between all of the participants and that region. Then choose "Create stack" and when asked, upload the template file from this repo.
 
 You'll be asked for the instance type 
 
@@ -57,8 +57,8 @@ Outputs from the CloudFormation template of interest are:
  - The Elastic IP that you should use to connect to midiHub.
  - The two IP addresses for Global Accelerator (more on that below).
  - A CloudFront URL which will show recent latency statistic from clients that have connected to midiHub.
- - A CloudFront URL which will current participants on the hub.
- - The Lambda Function URL for retrieiving latency statistics and another for participants. These are generally not required (as the web page is built automatically) but you might need it if you were going to display the statistics using some other tool that you can build yourself.
+ - A CloudFront URL which will show current participants on the hub.
+ - The API Gateway URL for retrieiving latency statistics and another for participants. These are generally not required (as the web page is built automatically) but you might need it if you were going to display the statistics using some other tool that you can build yourself.
 
 The Elastic IP may result in charges to your account. If you are shutting down the MidiHub instance to save costs (this is a good idea!) you will be charged for the Elastic IP because it is unused. On [the pricing page](https://aws.amazon.com/ec2/pricing/on-demand/#Elastic_IP_Addresses) you can see that this will result in an extra charge of around US$4 per month. You can delete the entire CloudFormation stack (which will eliminate the charge) but the next time you create the stack it will have a new Elastic IP.
 
@@ -86,6 +86,6 @@ Install the Python `boto3` library (`sudo pip3 install boto3`) - this is used in
 
 Download and build `rtpmidid` from https://github.com/davidmoreno/rtpmidid
 
-Download `midihub.py` and put it somewhere that you can run it. In AWS this is triggered every minute by cron - it automatically detects if it is still running and self-terminates if so. The running version starts `rtpmidid` and uses `aconnect` to join the MIDI sessions together. Options for where to find binaries are in `midihub.py`.
+Download `midihub.py` and put it somewhere that you can run it. This is easiest done by cloning this repo. In AWS this is triggered every minute by cron - it automatically detects if it is still running and self-terminates if so. The running version starts `rtpmidid` and uses `aconnect` to join the MIDI sessions together. Options for where to find binaries are in `midihub.py` are at the top of the file.
 
-It's up to you whether you display the statistic or not. The `update-latency.py` and `update-participants.py` scripts can help here. They put the data into DynamoDb - you can use a different database if you like.
+It's up to you whether you display the statistics or not. The `update-latency.py` and `update-participants.py` scripts can help here. They put the data into DynamoDb - you can use a different database if you like.
