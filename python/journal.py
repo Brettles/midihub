@@ -178,8 +178,6 @@ def processJournal(peer, packet):
                 print(hex(channel.journal[index]), hex(channel.journal[index+1]))
                 index += 2
 
-        # print(channel.journal)
-        print('-----------------------')
 
         if channel.header.e: # Appendix A.7
             headerFirst = channel.journal[index]
@@ -195,6 +193,8 @@ def processJournal(peer, packet):
             length = headerFirst & 0x7f
             index += length
             print(f' - Aftertouch is {length} bytes')
+
+        print('-----------------------')
 
     peerStatus[peer.name].sequenceNumber = sequenceNumber
     return True
