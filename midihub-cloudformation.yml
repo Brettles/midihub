@@ -40,11 +40,11 @@ Outputs:
     Value: !Ref ElasticIP
   GlobalIP:
     Description: Globally available IP addresses of MIDI hub server
-    Value: !Join [',', !GetAtt GlobalAccelerator.Ipv4Addresses]
+    Value: !Join [",", !GetAtt GlobalAccelerator.Ipv4Addresses]
   LatencyStatisticsPage:
-    Value: !Sub 'https://${CloudFrontDistribution.DomainName}/midihub.html'
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}/midihub.html"
   ParticipantsPage:
-    Value: !Sub 'https://${CloudFrontDistribution.DomainName}/participants.html'
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}/participants.html"
   ListenerPorts:
     Description: UDP ports for MIDI daemon
     Value: !Ref ListenerPorts
@@ -104,33 +104,33 @@ Resources:
               content: !Sub |
                 [default]
                 region = ${AWS::Region}
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/midiports":
               content: !Sub ${ListenerPorts}
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/dynamodbtable":
               content: !Sub ${DynamoDBTable}
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/cloudfrontdistribution":
               content: !Sub ${CloudFrontDistribution}
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/apigatewayendpoint":
               content: !Sub ${APIGateway.ApiEndpoint}/
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
             "/home/ubuntu/crontab.root":
               content: !Sub |
                 @reboot sudo apt-get install linux-modules-extra-`uname -r` -y
-              mode: '000644'
+              mode: "000644"
               owner: root
               group: root
             "/home/ubuntu/crontab.ubuntu":
@@ -140,7 +140,7 @@ Resources:
                 * * * * * (cd /home/ubuntu; ./midihub.py) >>/home/ubuntu/output.log 2>&1
                 * * * * * (cd /home/ubuntu; grep Latency *.log | ./update-latency.py)
                 * * * * * (cd /home/ubuntu/midihub/; ./update-participants.py)
-              mode: '000644'
+              mode: "000644"
               owner: ubuntu
               group: ubuntu
     Properties:
@@ -156,12 +156,12 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
-          sudo apt-get update -y
-          sudo apt-get upgrade -y
-          sudo apt-get install python3-pip -y
+          apt-get update -y
+          apt-get upgrade -y
+          apt-get install python3-pip -y
           mkdir -p /opt/aws/
-          sudo pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
-          sudo ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
+          pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+          ln -s /usr/local/init/ubuntu/cfn-hup /etc/init.d/cfn-hup
           /usr/local/bin/cfn-init -v --stack ${AWS::StackName} --resource MidiHubInstance --region ${AWS::Region}
           /usr/local/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource MidiHubInstance --region ${AWS::Region}
           #
@@ -170,10 +170,10 @@ Resources:
           # host and it times out; then the whole build stops - that's mostly
           # inconvenient
           #
-          sudo apt-get install cmake g++ pkg-config -y
-          sudo apt-get install libavahi-client-dev libfmt-dev alsa-utils alsa-base -y
-          sudo apt-get install libghc-alsa-core-dev avahi-utils linux-modules-extra-`uname -r` -y
-          sudo pip3 install boto3
+          apt-get install cmake g++ pkg-config -y
+          apt-get install libavahi-client-dev libfmt-dev alsa-utils alsa-base -y
+          apt-get install libghc-alsa-core-dev avahi-utils linux-modules-extra-`uname -r` -y
+          pip3 install boto3
           cd /home/ubuntu
           git clone https://github.com/davidmoreno/rtpmidid
           cd rtpmidid
@@ -188,13 +188,13 @@ Resources:
           chmod +x midihub.py update-latency.py midihub/update-participants.py
           chown -R ubuntu:ubuntu *
           crontab -u ubuntu crontab.ubuntu
-          sudo crontab -u root crontab.root
-          sudo reboot
+          crontab -u root crontab.root
+          reboot
 
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub 'midiHub-${AWS::StackName}'
+      GroupName: !Sub "midiHub-${AWS::StackName}"
       GroupDescription: Enable SSH and RTP for MIDI
       SecurityGroupIngress:
       - IpProtocol: tcp
@@ -219,7 +219,7 @@ Resources:
   InstanceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'midiHub-EC2-${AWS::StackName}'
+      RoleName: !Sub "midiHub-EC2-${AWS::StackName}"
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -237,7 +237,7 @@ Resources:
           - Effect: Allow
             Action:
             - Lightsail:GetRegions
-            Resource: '*'
+            Resource: "*"
       - PolicyName: DynamoDB
         PolicyDocument:
           Version: 2012-10-17
@@ -255,14 +255,14 @@ Resources:
             Action:
             -  cloudfront:GetDistributionConfig
             -  cloudfront:UpdateDistribution
-            Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+            Resource: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
       - PolicyName: CloudFrontOAC
         PolicyDocument:
           Version: 2012-10-17
           Statement:
           - Effect: Allow
             Action: cloudfront:CreateOriginAccessControl
-            Resource: '*'
+            Resource: "*"
       - PolicyName: S3
         PolicyDocument:
           Version: 2012-10-17
@@ -272,12 +272,12 @@ Resources:
             -  s3:CreateBucket
             -  s3:PutBucketPolicy
             -  s3:PutObject
-            Resource: '*'
+            Resource: "*"
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties: 
-      InstanceProfileName: !Sub 'midiHub-${AWS::StackName}'
+      InstanceProfileName: !Sub "midiHub-${AWS::StackName}"
       Path: /
       Roles: 
       - !Ref InstanceRole
@@ -285,7 +285,7 @@ Resources:
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'midiHub-${AWS::StackName}'
+      TableName: !Sub "midiHub-${AWS::StackName}"
       AttributeDefinitions:
       - AttributeName: "clientId"
         AttributeType: "S"
@@ -300,7 +300,7 @@ Resources:
   LambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'midiHub-Lambda-${AWS::StackName}'
+      RoleName: !Sub "midiHub-Lambda-${AWS::StackName}"
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -310,15 +310,7 @@ Resources:
             Action:
             - sts:AssumeRole
       ManagedPolicyArns:
-        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-      AssumeRolePolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-              - lambda.amazonaws.com
-            Action:
-            - sts:AssumeRole
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
   DynamoDBPolicy:
     Type: AWS::IAM::Policy
@@ -349,7 +341,7 @@ Resources:
   LambdaGetLatencyStats:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'midiHub-GetLatencyStats-${AWS::StackName}'
+      FunctionName: !Sub "midiHub-GetLatencyStats-${AWS::StackName}"
       Handler: index.lambda_handler
       Runtime: python3.11
       Architectures: [arm64]
@@ -405,7 +397,7 @@ Resources:
   LambdaGetParticipants:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'midiHub-GetParticipants-${AWS::StackName}'
+      FunctionName: !Sub "midiHub-GetParticipants-${AWS::StackName}"
       Handler: index.lambda_handler
       Runtime: python3.11
       Architectures: [arm64]
@@ -453,7 +445,7 @@ Resources:
   LambdaRebootHub:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'midiHub-RebootHub-${AWS::StackName}'
+      FunctionName: !Sub "midiHub-RebootHub-${AWS::StackName}"
       Handler: index.lambda_handler
       Runtime: python3.11
       Architectures: [arm64]
@@ -505,7 +497,7 @@ Resources:
   APIGateway:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: !Sub 'midiHub-${AWS::StackName}'
+      Name: !Sub "midiHub-${AWS::StackName}"
       ProtocolType: HTTP
       CorsConfiguration:
         AllowHeaders:
@@ -599,7 +591,7 @@ Resources:
   GlobalAccelerator:
     Type: AWS::GlobalAccelerator::Accelerator
     Properties:
-      Name: !Sub 'mibiHub-${AWS::StackName}'
+      Name: !Sub "mibiHub-${AWS::StackName}"
       IpAddressType: IPV4
       Enabled: True
 
@@ -633,11 +625,11 @@ Resources:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Comment: !Sub 'mibiHub-${AWS::StackName}'
+        Comment: !Sub "mibiHub-${AWS::StackName}"
         DefaultRootObject: index.html
         Enabled: true
         HttpVersion: http2
-        PriceClass: 'PriceClass_All'
+        PriceClass: "PriceClass_All"
         Origins:
         - Id: DefaultOrigin
           DomainName: aws.amazon.com
@@ -651,7 +643,7 @@ Resources:
           TargetOriginId: DefaultOrigin
           ViewerProtocolPolicy: redirect-to-https
           ForwardedValues:
-            QueryString: 'false'
+            QueryString: False
             Cookies:
               Forward: none
 
