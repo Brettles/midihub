@@ -170,7 +170,7 @@ Resources:
           # host and it times out; then the whole build stops - that's mostly
           # inconvenient
           #
-          apt-get install cmake g++ pkg-config -y
+          apt-get install cmake g++ pkg-config ninja-build -y
           apt-get install libavahi-client-dev libfmt-dev alsa-utils alsa-base -y
           apt-get install libghc-alsa-core-dev avahi-utils linux-modules-extra-`uname -r` -y
           pip3 install boto3
